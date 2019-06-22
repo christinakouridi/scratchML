@@ -293,15 +293,21 @@ class LSTM:
                 self.smooth_loss = self.smooth_loss * 0.999 + loss * 0.001
                 J.append(self.smooth_loss)
 
+                # check gradients
+                if epoch == 0 and j == 0:
+                    self.gradient_check(x_batch, y_batch, h_prev, c_prev, num_checks=10, delta=1e-7)
+
                 self.clip_grads()
 
                 batch_num = epoch * self.epochs + j / self.seq_len + 1
                 self.update_params(batch_num)
 
-            # print out loss and sample string
-            if verbose:
-                print('Epoch:', epoch, '\tLoss:', round(self.smooth_loss, 2))
-                s = self.sample(h_prev, c_prev, sample_size=250)
-                print(s, "\n")
+                # print out loss and sample string
+                if verbose:
+                    if j % 400000 == 0:
+                        print('Epoch:', epoch, '\tBatch:', j, "-", j + self.seq_len,
+                              '\tLoss:', round(self.smooth_loss, 2))
+                        s = self.sample(h_prev, c_prev, sample_size=250)
+                        print(s, "\n")
 
         return J, self.params
