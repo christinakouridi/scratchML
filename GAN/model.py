@@ -5,13 +5,12 @@ import imageio
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 
 
 class GAN:
-    def __init__(self, numbers, epochs=100, batch_size=64, input_layer_size_g=128,
-                 hidden_layer_size_g=256, hidden_layer_size_d=256,
-                 learning_rate=1e-3, decay_rate=1e-4, image_size=28):
+    def __init__(self, numbers, epochs=100, batch_size=64, input_layer_size_g=100,
+                 hidden_layer_size_g=128, hidden_layer_size_d=128, learning_rate=1e-3,
+                 decay_rate=1e-4, image_size=28, display_epochs=5, create_gif=False):
         """
         Implementation of simple GAN using Numpy.
         The Generator and Discriminator are described by multilayer perceptrons.
@@ -25,6 +24,8 @@ class GAN:
             learning_rate - to what extent newly acquired info. overrides old info.
             decay_rate - learning rate decay after every epoch
             image_size - dimension of image
+            display_epochs - after how many epochs to display intermediary results
+            create_gif - if true, a gif of sample images will be generated
         """
         self.numbers = numbers
         self.epochs = epochs
@@ -35,6 +36,10 @@ class GAN:
         self.lr = learning_rate
         self.dr = decay_rate
         self.image_size = image_size
+        self.display_epochs = display_epochs
+        self.create_gif = create_gif
+
+        self.filenames = [] # stores filenames of sample images if create_gif is enabled
 
         # -------- Initialise weights with Xavier method --------#
         # -------- Generator --------#
@@ -51,7 +56,6 @@ class GAN:
         self.W1_d = np.random.randn(self.nh_d, 1) * np.sqrt(2. / self.nh_d)  # 128x1
         self.b1_d = np.zeros((1, 1))  # 1x1
 
-
     def sigmoid(self, x, derivative=False):
         """
         Sigmoid activation function, range [0,1]
@@ -67,7 +71,6 @@ class GAN:
         else:
             raise ValueError('the parameter derivative must be of type boolean')
 
-
     def tanh(self, x, derivative=False):
         """
         Tanh activation function, range [-1,1]
@@ -82,7 +85,6 @@ class GAN:
             return y
         else:
             raise ValueError('the parameter derivative must be of type boolean')
-
 
     def lrelu(self, x, alpha=1e-2, derivative=False):
         """
@@ -100,7 +102,6 @@ class GAN:
             return np.maximum(x, x * alpha)
         else:
             raise ValueError('the parameter derivative must be of type boolean')
-
 
     def forward_generator(self, z):
         """
@@ -120,7 +121,6 @@ class GAN:
         self.a1_g = np.reshape(self.a1_g, (self.batch_size, self.image_size, self.image_size))
         return self.z1_g, self.a1_g
 
-
     def forward_discriminator(self, img):
         """
         Implements forward propagation through the Discriminator
@@ -138,7 +138,6 @@ class GAN:
         self.z1_d = np.dot(self.a0_d, self.W1_d) + self.b1_d
         self.a1_d = self.sigmoid(self.z1_d)  # check: output probabiltiy between [0,1]
         return self.z1_d, self.a1_d
-
 
     def backward_discriminator(self, x_real, z1_real, a1_real, x_fake, z1_fake, a1_fake):
         """
@@ -193,7 +192,6 @@ class GAN:
         self.W1_d -= self.lr * dW1
         self.b1_d -= self.lr * db1
 
-
     def backward_generator(self, z, x_fake, z1_fake, a1_fake):
         """
         Implements backward propagation through the Generator
@@ -231,7 +229,6 @@ class GAN:
         self.W1_g -= self.lr * dW1_g
         self.b1_g -= self.lr * db1_g
 
-
     def preprocess_data(self, x, y):
         """
         Processes the training images and labels:
@@ -263,7 +260,6 @@ class GAN:
         y_train = y_train[: num_batches * self.batch_size]
         return x_train, y_train, num_batches
 
-
     def generate_images(self, images, epoch, show):
         """
         Generates a grid with images from the generator.
@@ -273,43 +269,35 @@ class GAN:
             epoch - current training iteration, used to identify images
             show - if True, the grid of images is displayed
         """
-        images = np.reshape(images, [images.shape[0], -1])
-        sqrtn = int(np.ceil(np.sqrt(images.shape[0])))
-        sqrtimg = int(np.ceil(np.sqrt(images.shape[1])))
+        fig = plt.figure(figsize=(4, 4))
 
-        fig = plt.figure(figsize=(sqrtn, sqrtn))
-        gs = gridspec.GridSpec(sqrtn, sqrtn)
-        gs.update(wspace=0.05, hspace=0.05)
-
-        for i, img in enumerate(images):
-            ax = plt.subplot(gs[i])
+        for i in range(16):
+            plt.subplot(4, 4, i + 1)
+            plt.imshow(images[i] * 127.5 + 127.5, cmap='gray')
             plt.axis('off')
-            ax.set_xticklabels([])
-            ax.set_yticklabels([])
-            ax.set_aspect('equal')
-            plt.imshow(img.reshape([sqrtimg, sqrtimg]), cmap='gray')
 
         # saves generated images in the local directory
-        plt.savefig("GAN_epoch%d" % (epoch) + ".png")
+        if self.create_gif:
+            filename = "GAN_epoch%d" % (epoch) + ".png"
+            self.filenames.append(filename)
+
+            plt.savefig(filename)
 
         if show == True:
             plt.show()
         else:
             plt.close()
 
-
-    def generate_gif(self, filename):
+    def generate_gif(self, gifname):
         """
         Generates a gif from the exported generated images at each training iteration
         Input:
             filename - name of gif, stored in local directory
         """
         images = []
-        for filename in os.listdir():
-            if filename.startswith('GAN_epoch'):
-                images.append(imageio.imread(filename))
-        imageio.mimsave('GAN.gif', images)
-
+        for filename in self.filenames:
+            images.append(imageio.imread(filename))
+        imageio.mimsave(gifname, images)
 
     def train(self, x, y):
         """
@@ -357,7 +345,7 @@ class GAN:
                                             x_fake, z1_d_fake, a1_d_fake)
                 self.backward_generator(z, x_fake, z1_d_fake, a1_d_fake)
 
-            if epoch % 5 == 0:
+            if epoch % self.display_epochs == 0:
                 print("Epoch:%d|G loss:%.4f|D loss:%.4f|D(G(z))avg:%.4f|D(x)avg:%.4f|LR:%f" % \
                       (epoch, J_G, J_D, np.mean(a1_d_fake), np.mean(a1_d_real), self.lr))
                 self.generate_images(x_fake, epoch, show=True)
@@ -368,5 +356,6 @@ class GAN:
             self.lr = self.lr * (1.0 / (1.0 + self.dr * epoch))
 
         # generate gif
-        self.generate_gif(filename="GAN.gif")
+        if self.create_gif:
+            self.generate_gif(gifname="GAN.gif")
         return J_Ds, J_Gs
