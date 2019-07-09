@@ -160,7 +160,9 @@ class GAN:
             a1_fake - discriminator's output prediction for fake images
         """
         # -------- Backprop through Discriminator --------#
-        # J_D = np.mean(-np.log(a1_d_real) - np.log(1 - a1_d_fake))
+        # J_D = np.mean(-np.log(a1_real) - np.log(1 - a1_fake))
+
+        # real input gradients -np.log(a1_real)
         da1_real = -1. / (a1_real + 1e-8)  # 64x1
 
         dz1_real = da1_real * self.dsigmoid(z1_real)  # 64x1
@@ -172,8 +174,7 @@ class GAN:
         dW0_real = np.dot(x_real.T, dz0_real)
         db0_real = np.sum(dz0_real, axis=0, keepdims=True)
 
-        # -------- Backprop through Generator --------#
-        # J_G = np.mean(-np.log(a1_d_fake))
+        # fake input gradients -np.log(1 - a1_fake)
         da1_fake = 1. / (1. - a1_fake + 1e-8)
 
         dz1_fake = da1_fake * self.dsigmoid(z1_fake)
@@ -210,7 +211,9 @@ class GAN:
             a1_fake - output prediction from discriminator D(G(z))
         """
         # -------- Backprop through Discriminator --------#
-        # J_D = np.mean(-np.log(a1_d_real) - np.log(1 - a1_d_fake))
+        # J_D = np.mean(-np.log(a1_real) - np.log(1 - a1_fake))
+
+        # fake input gradients -np.log(1 - a1_fake)
         da1_d = -1.0 / (a1_fake + 1e-8)  # 64x1
 
         dz1_d = da1_d * self.dsigmoid(z1_fake)
@@ -219,7 +222,8 @@ class GAN:
         dx_d = np.dot(dz0_d, self.W0_d.T)
 
         # -------- Backprop through Generator --------#
-        # J_G = np.mean(-np.log(a1_d_fake))
+        # J_G = np.mean(-np.log(1 - a1_fake))
+        # fake input gradients -np.log(1 - a1_fake)
         dz1_g = dx_d * self.dtanh(self.z1_g)
         dW1_g = np.dot(self.a0_g.T, dz1_g)
         db1_g = np.sum(dz1_g, axis=0, keepdims=True)
